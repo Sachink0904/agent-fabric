@@ -1,0 +1,85 @@
+"""
+models.py
+
+Core data contracts for the asynchronous agent orchestration fabric.
+
+These models define the canonical shapes of data that flow between the
+orchestrator and its worker agents. Both models are immutable (frozen)
+so that instances can be safely shared, cached, or passed across
+coroutines / tasks without risk of one consumer mutating state that
+another consumer is concurrently reading.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Literal
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class Task(BaseModel):
+    """
+    Represents a single unit of work submitted to the orchestration fabric.
+
+    A `Task` is created by the orchestrator (or an upstream producer) and
+    dispatched to one or more agents for execution. Because the fabric is
+    asynchronous and high-throughput, `Task` instances are frozen: once
+    constructed, a task's identity and payload cannot be altered, which
+    prevents race conditions when the same task object is read by multiple
+    concurrent consumers (e.g., scheduling, logging, and execution
+    coroutines all inspecting the same task).
+
+    Attributes:
+        task_id: Globally unique identifier for this task, used for
+            tracing, deduplication, and correlating results back to the
+            originating request.
+        task_type: Discriminator string identifying which agent capability
+            or handler should process this task (e.g. "summarize",
+            "code_review", "retrieve_documents").
+        payload: Arbitrary structured input data required by the target
+            agent to execute the task.
+        priority: Scheduling priority for the task queue. Lower or higher
+            values may be treated as higher priority depending on the
+            scheduler's convention; defaults to 1 (standard priority).
+    """
+
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    task_id: UUID
+    task_type: str
+    payload: dict[str, Any]
+    priority: int = Field(default=1)
+
+
+class AgentResponse(BaseModel):
+    """
+    Represents the outcome returned by an agent after processing a `Task`.
+
+    An `AgentResponse` is produced once an agent finishes executing a task
+    and is passed back through the orchestration fabric for aggregation,
+    persistence, or further routing. Like `Task`, this model is frozen to
+    guarantee thread-safe, immutable handoff of results between the agent
+    that produced them and any downstream consumers (result collectors,
+    metrics pipelines, retry logic, etc.) running concurrently.
+
+    Attributes:
+        agent_name: Identifier of the agent instance or agent type that
+            produced this response, used for attribution and debugging.
+        status: Outcome of the task execution; either "success" or
+            "failed".
+        result: Structured output produced by the agent. For failed
+            executions this may hold partial results or error details.
+        metadata: Optional auxiliary information about the execution
+            (e.g. timing, token usage, retry count). Not required for
+            every response.
+    """
+
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    agent_name: str
+    status: Literal["success", "failed"]
+    result: dict[str, Any]
+nano main.py
+
+
