@@ -1,18 +1,12 @@
-from __future__ import annotations
-from typing import Any, Literal, Optional
-from uuid import UUID
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional, Dict, Any
+from uuid import UUID, uuid4
+from sqlmodel import SQLModel, Field, JSON, Column
 
-class Task(BaseModel):
-    model_config = ConfigDict(frozen=True, strict=True)
-    task_id: UUID
+class Task(SQLModel, table=True):
+    task_id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True, nullable=False)
     task_type: str
-    payload: dict[str, Any]
-    priority: int = Field(default=1)
-
-class AgentResponse(BaseModel):
-    model_config = ConfigDict(frozen=True, strict=True)
-    agent_name: str
-    status: Literal["success", "failed"]
-    result: dict[str, Any]
-    metadata: Optional[dict[str, Any]] = Field(default=None)
+    payload: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    priority: int = 1
+    status: str = "pending"  # pending, processing, completed, failed
+    result: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    agent_assigned: Optional[str] = None
